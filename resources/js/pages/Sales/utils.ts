@@ -16,5 +16,6 @@ export const calculateItemSubtotal = (item: CartItem) => {
 };
 
 export const getQuantityStep = (item: CartItem) => {
+    if (item.isFractionalSale) return 0.5;
     return item.unit === 'kg' || item.unit === 'litro' ? 0.5 : 1;
 };

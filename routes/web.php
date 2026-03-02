@@ -41,6 +41,8 @@ Route::middleware(['auth', 'verified'])->group(function () {
     // Movimientos de inventario
     Route::get('inventory', [InventoryMovementController::class, 'index'])->name('inventory.index');
     Route::post('inventory/movements', [InventoryMovementController::class, 'store'])->name('inventory.store');
+    Route::put('inventory/movements/{movement}', [InventoryMovementController::class, 'update'])->name('inventory.update');
+    Route::delete('inventory/movements/{movement}', [InventoryMovementController::class, 'destroy'])->name('inventory.destroy');
 
     // Gestión de usuarios (solo admin)
     Route::middleware('role:Administrador')->group(function () {

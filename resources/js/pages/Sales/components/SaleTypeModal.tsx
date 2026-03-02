@@ -40,7 +40,8 @@ export function SaleTypeModal({
                                     Venta Normal
                                 </p>
                                 <p className="text-default-500 mt-1 text-xs">
-                                    Por {product.unit} a{' '}
+                                    Vende el producto completo por{' '}
+                                    {product.unit} a{' '}
                                     {formatCurrency(product.sale_price)} c/u
                                 </p>
                             </div>
@@ -68,16 +69,27 @@ export function SaleTypeModal({
                                                 Venta Fraccionada
                                             </p>
                                             <p className="text-success-600 dark:text-success-400 mt-1 text-xs">
-                                                Por kilos a{' '}
-                                                {formatCurrency(product.price_per_kg)}/kg
+                                                Ingresa la cantidad en kg que
+                                                deseas vender a{' '}
+                                                {formatCurrency(
+                                                    product.price_per_kg,
+                                                )}
+                                                /kg
                                                 <br />
-                                                (Se vende por incrementos de{' '}
-                                                {product.kg_per_unit} kg)
+                                                (Disponible:{' '}
+                                                {(
+                                                    product.stock *
+                                                    product.kg_per_unit
+                                                ).toFixed(1)}{' '}
+                                                kg)
                                             </p>
                                         </div>
                                         <div className="text-right">
                                             <p className="text-success font-bold">
-                                                {formatCurrency(product.price_per_kg)}/kg
+                                                {formatCurrency(
+                                                    product.price_per_kg,
+                                                )}
+                                                /kg
                                             </p>
                                         </div>
                                     </div>

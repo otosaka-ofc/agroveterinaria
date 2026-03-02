@@ -10,7 +10,11 @@ import {
 } from '@heroui/react';
 import { ShoppingCart, Trash2 } from 'lucide-react';
 import { CartItem } from '../types';
-import { calculateItemSubtotal, formatCurrency, getQuantityStep } from '../utils';
+import {
+    calculateItemSubtotal,
+    formatCurrency,
+    getQuantityStep,
+} from '../utils';
 
 interface CartTableProps {
     cart: CartItem[];
@@ -18,13 +22,19 @@ interface CartTableProps {
     onRemove: (productId: number) => void;
 }
 
-export function CartTable({ cart, onUpdateQuantity, onRemove }: CartTableProps) {
+export function CartTable({
+    cart,
+    onUpdateQuantity,
+    onRemove,
+}: CartTableProps) {
     if (cart.length === 0) {
         return (
             <div className="text-default-400 py-12 text-center">
                 <ShoppingCart className="mx-auto mb-2 h-12 w-12" />
                 <p>No hay productos en el carrito</p>
-                <p className="text-sm">Busca y agrega productos para comenzar</p>
+                <p className="text-sm">
+                    Busca y agrega productos para comenzar
+                </p>
             </div>
         );
     }
@@ -53,7 +63,7 @@ export function CartTable({ cart, onUpdateQuantity, onRemove }: CartTableProps) 
                                 <p className="font-semibold">{item.name}</p>
                                 {item.isFractionalSale && (
                                     <p className="text-success text-xs">
-                                        Venta fraccionada: {item.kg_per_unit} kg por unidad
+                                        Venta por kg
                                     </p>
                                 )}
                             </div>
@@ -61,10 +71,14 @@ export function CartTable({ cart, onUpdateQuantity, onRemove }: CartTableProps) 
                         <TableCell>
                             <div>
                                 <p className="font-semibold">
-                                    {formatCurrency(item.price_per_kg ?? item.unit_price)}
+                                    {formatCurrency(
+                                        item.price_per_kg ?? item.unit_price,
+                                    )}
                                 </p>
                                 <p className="text-default-500 text-xs">
-                                    {item.price_per_kg ? '/kg' : `/${item.unit}`}
+                                    {item.price_per_kg
+                                        ? '/kg'
+                                        : `/${item.unit}`}
                                 </p>
                             </div>
                         </TableCell>
@@ -87,7 +101,7 @@ export function CartTable({ cart, onUpdateQuantity, onRemove }: CartTableProps) 
                                 />
                                 <span className="text-default-500 text-xs whitespace-nowrap">
                                     {item.isFractionalSale
-                                        ? `kg (${item.quantity} / ${item.stock}u)`
+                                        ? `kg (disp: ${item.stock} kg)`
                                         : item.unit}
                                 </span>
                             </div>

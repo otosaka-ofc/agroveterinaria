@@ -6,10 +6,13 @@ export function useCart() {
     const [cart, setCart] = useState<CartItem[]>([]);
 
     const addToCart = (product: Product, isFractionalSale: boolean) => {
-        const existingItem = cart.find((item) => item.product_id === product.id);
+        const existingItem = cart.find(
+            (item) => item.product_id === product.id,
+        );
 
+        // Para venta fraccionada la cantidad se maneja en kg; para normal en unidades.
         const increment = isFractionalSale
-            ? product.kg_per_unit
+            ? 0.5
             : product.unit === 'kg' || product.unit === 'litro'
               ? 0.5
               : 1;
@@ -18,15 +21,21 @@ export function useCart() {
             ? product.price_per_kg!
             : product.sale_price;
 
+        // Stock disponible en la misma unidad que se usará en el carrito:
+        //   fraccionada → kg disponibles; normal → unidades disponibles.
+        const availableStock = isFractionalSale
+            ? product.stock * (product.kg_per_unit ?? 1)
+            : product.stock;
+
         if (existingItem) {
-            if (existingItem.quantity >= product.stock) {
+            if (existingItem.quantity + increment > existingItem.stock) {
                 alert('No hay suficiente stock');
                 return;
             }
             setCart((prev) =>
                 prev.map((item) =>
                     item.product_id === product.id
-                        ? { ...item, quantity: item.quantity + (increment ?? 0) }
+                        ? { ...item, quantity: item.quantity + increment }
                         : item,
                 ),
             );
@@ -38,9 +47,9 @@ export function useCart() {
             const newItem: CartItem = {
                 product_id: product.id,
                 name: product.name,
-                quantity: increment ?? 0,
+                quantity: increment,
                 unit_price: unitPrice,
-                stock: product.stock,
+                stock: availableStock,
                 unit: product.unit,
                 isFractionalSale,
                 price_per_kg: product.price_per_kg,
