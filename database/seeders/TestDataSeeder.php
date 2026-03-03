@@ -36,10 +36,8 @@ class TestDataSeeder extends Seeder
             ['sku' => 'HER001', 'name' => 'Pala Agrícola', 'category_id' => $createdCategories['herramientas']->id, 'purchase_price' => 18.00, 'sale_price' => 30.00, 'stock' => 25, 'min_stock' => 5, 'unit' => 'unidad'],
             ['sku' => 'HER002', 'name' => 'Machete', 'category_id' => $createdCategories['herramientas']->id, 'purchase_price' => 15.00, 'sale_price' => 25.00, 'stock' => 40, 'min_stock' => 10, 'unit' => 'unidad'],
             ['sku' => 'FER001', 'name' => 'Fertilizante NPK 50kg', 'category_id' => $createdCategories['fertilizantes']->id, 'purchase_price' => 55.00, 'sale_price' => 75.00, 'stock' => 35, 'min_stock' => 10, 'unit' => 'bolsa'],
-            ['sku' => 'FER002', 'name' => 'Abono Orgánico 50kg', 'category_id' => $createdCategories['fertilizantes']->id, 'purchase_price' => 40.00, 'sale_price' => 60.00, 'stock' => 20, 'min_stock' => 5, 'unit' => 'bolsa', 'is_stored' => true],
             ['sku' => 'ACC001', 'name' => 'Guantes de Trabajo', 'category_id' => $createdCategories['accesorios']->id, 'purchase_price' => 5.00, 'sale_price' => 10.00, 'stock' => 100, 'min_stock' => 20, 'unit' => 'par'],
             ['sku' => 'ACC002', 'name' => 'Botas de Jebe', 'category_id' => $createdCategories['accesorios']->id, 'purchase_price' => 20.00, 'sale_price' => 35.00, 'stock' => 30, 'min_stock' => 10, 'unit' => 'par'],
-            ['sku' => 'ACC003', 'name' => 'Botas de Jebe', 'category_id' => $createdCategories['accesorios']->id, 'purchase_price' => 20.00, 'sale_price' => 35.00, 'stock' => 30, 'min_stock' => 10, 'unit' => 'par', 'is_stored' => true],
         ];
 
         foreach ($products as $productData) {
