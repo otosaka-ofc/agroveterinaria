@@ -45,6 +45,7 @@ class SaleController extends Controller
     {
         $products = Product::where('is_active', true)
             ->where('stock', '>', 0)
+            ->where('is_stored', false)
             ->with('category')
             ->get();
 
@@ -75,16 +76,16 @@ class SaleController extends Controller
             foreach ($validated['items'] as $item) {
                 $product = Product::findOrFail($item['product_id']);
                 $isFractionalSale = $item['is_fractional_sale'] ?? false;
-                
+
                 // Para ventas fraccionadas, calcular cuántas unidades se descargan
-                $unitsToDeduct = $isFractionalSale 
-                    ? ceil($item['quantity'] / ($product->kg_per_unit ?? 1))
+                $unitsToDeduct = $isFractionalSale
+                    ? $item['quantity'] / ($product->kg_per_unit ?? 1)
                     : $item['quantity'];
-                
+
                 if ($product->stock < $unitsToDeduct) {
                     return back()->with('error', "Stock insuficiente para el producto: {$product->name}");
                 }
-                
+
                 $itemsWithUnits[] = array_merge($item, [
                     'units_to_deduct' => $unitsToDeduct,
                     'is_fractional_sale' => $isFractionalSale,
@@ -165,51 +166,42 @@ class SaleController extends Controller
 
     public function destroy(Sale $sale)
     {
-        if ($sale->status === 'cancelled') {
-            return back()->with('error', 'La venta ya está cancelada.');
-        }
-
         DB::beginTransaction();
 
         try {
-            // Restaurar stock
-            foreach ($sale->details as $detail) {
-                $product = $detail->product;
-                
-                // Obtener el movimiento de inventario original para saber cuántas unidades se descuentaron
-                $originalMovement = InventoryMovement::where('sale_id', $sale->id)
-                    ->where('product_id', $product->id)
-                    ->where('type', 'exit')
-                    ->first();
-                
-                // Usar la cantidad de unidades descuentadas del movimiento original
-                $unitsToRestore = $originalMovement ? $originalMovement->quantity : $detail->quantity;
-                
-                $product->increment('stock', $unitsToRestore);
+            // Solo restaurar stock si la venta estaba completada.
+            // Si ya estaba cancelada, el stock fue restaurado al momento de cancelarla.
+            if ($sale->status === 'completed') {
+                $sale->load('details.product');
 
-                // Registrar movimiento de inventario
-                InventoryMovement::create([
-                    'product_id' => $product->id,
-                    'type' => 'entry',
-                    'quantity' => $unitsToRestore,
-                    'previous_stock' => $product->stock - $unitsToRestore,
-                    'new_stock' => $product->stock,
-                    'reason' => 'Cancelación de venta #' . $sale->sale_number,
-                    'user_id' => auth()->id(),
-                    'sale_id' => $sale->id,
-                ]);
+                foreach ($sale->details as $detail) {
+                    $product = $detail->product;
+
+                    // Usar la cantidad del movimiento original de salida para ser exactos
+                    $originalMovement = InventoryMovement::where('sale_id', $sale->id)
+                        ->where('product_id', $product->id)
+                        ->where('type', 'exit')
+                        ->first();
+
+                    $unitsToRestore = $originalMovement
+                        ? (float) $originalMovement->quantity
+                        : (float) $detail->quantity;
+
+                    $product->increment('stock', $unitsToRestore);
+                }
             }
 
-            // Marcar venta como cancelada
-            $sale->update(['status' => 'cancelled']);
+            // Eliminar la venta. Las FK con cascadeOnDelete se encargan de borrar
+            // automáticamente sale_details e inventory_movements asociados.
+            $sale->delete();
 
             DB::commit();
 
             return redirect()->route('sales.index')
-                ->with('success', 'Venta cancelada exitosamente.');
+                ->with('success', 'Venta eliminada exitosamente.');
         } catch (\Exception $e) {
             DB::rollBack();
-            return back()->with('error', 'Error al cancelar la venta: ' . $e->getMessage());
+            return back()->with('error', 'Error al eliminar la venta: ' . $e->getMessage());
         }
     }
 }

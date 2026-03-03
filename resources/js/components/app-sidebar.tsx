@@ -13,15 +13,16 @@ import {
 import { dashboard } from '@/routes';
 import { type NavItem } from '@/types';
 import { Link, usePage } from '@inertiajs/react';
-import { 
-    BookOpen, 
-    Folder, 
-    LayoutGrid, 
-    Package, 
-    FolderTree, 
-    Users, 
-    ShoppingCart, 
-    BarChart3 
+import {
+    BarChart3,
+    BookOpen,
+    Boxes,
+    Folder,
+    FolderTree,
+    LayoutGrid,
+    Package,
+    ShoppingCart,
+    Users,
 } from 'lucide-react';
 import AppLogo from './app-logo';
 
@@ -40,6 +41,11 @@ const mainNavItems: NavItem[] = [
         title: 'Productos',
         href: '/products',
         icon: Package,
+    },
+    {
+        title: 'Almacén',
+        href: '/store',
+        icon: Boxes,
     },
     {
         title: 'Inventario',
@@ -73,8 +79,12 @@ const footerNavItems: NavItem[] = [
 
 export function AppSidebar() {
     const { auth } = usePage<any>().props;
-    const isAdmin = auth?.user?.roles?.some((role: any) => role.name === 'Administrador');
-    const isSeller = auth?.user.roles?.some((role:any) => role.name === "Vendedor");
+    const isAdmin = auth?.user?.roles?.some(
+        (role: any) => role.name === 'Administrador',
+    );
+    const isSeller = auth?.user.roles?.some(
+        (role: any) => role.name === 'Vendedor',
+    );
 
     // Agregar item de usuarios si es admin
     let navItems = [...mainNavItems];
@@ -97,8 +107,8 @@ export function AppSidebar() {
                 title: 'Ventas',
                 href: '/sales',
                 icon: ShoppingCart,
-            }
-        ]
+            },
+        ];
     }
 
     return (

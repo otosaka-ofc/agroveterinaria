@@ -71,26 +71,24 @@ class InventoryMovementController extends Controller
     {
         $data = $request->validate([
             'product_id' => ['required', 'exists:products,id'],
-            'type' => ['required', 'in:entry,exit,adjustment'],
-            'quantity' => ['required', 'integer', 'not_in:0'],
-            'reason' => ['nullable', 'string', 'max:255'],
+            'type'       => ['required', 'in:entry,exit,adjustment'],
+            'quantity'   => ['required', 'numeric', 'not_in:0'],
+            'reason'     => ['nullable', 'string', 'max:255'],
         ]);
 
-        $product = Product::findOrFail($data['product_id']);
-        $previousStock = $product->stock;
-        $quantity = (int) $data['quantity'];
-        $type = $data['type'];
+        $product       = Product::findOrFail($data['product_id']);
+        $previousStock = (float) $product->stock;
+        $quantity      = (float) $data['quantity'];
+        $type          = $data['type'];
 
-        // Validaciones de cantidad según tipo
         if ($type !== 'adjustment' && $quantity <= 0) {
             return back()->withErrors(['quantity' => 'La cantidad debe ser mayor a 0.']);
         }
 
-        // Ajustar signo para movimientos
         $delta = match ($type) {
-            'entry' => $quantity,
-            'exit' => -$quantity,
-            'adjustment' => $quantity, // puede ser positivo o negativo
+            'entry'      => $quantity,
+            'exit'       => -$quantity,
+            'adjustment' => $quantity,
         };
 
         $newStock = $previousStock + $delta;
@@ -105,17 +103,97 @@ class InventoryMovementController extends Controller
             $product->update(['stock' => $newStock]);
 
             InventoryMovement::create([
-                'product_id' => $product->id,
-                'type' => $type,
-                'quantity' => $quantity,
+                'product_id'     => $product->id,
+                'type'           => $type,
+                'quantity'       => $quantity,
                 'previous_stock' => $previousStock,
-                'new_stock' => $newStock,
-                'reason' => $data['reason'] ?? null,
-                'user_id' => Auth::id(),
-                'sale_id' => $data['sale_id'] ?? null,
+                'new_stock'      => $newStock,
+                'reason'         => $data['reason'] ?? null,
+                'user_id'        => Auth::id(),
+                'sale_id'        => $data['sale_id'] ?? null,
             ]);
         });
 
         return back()->with('success', 'Movimiento registrado y stock actualizado.');
+    }
+
+    public function update(Request $request, InventoryMovement $movement): RedirectResponse
+    {
+        // Los movimientos generados automáticamente por una venta no se pueden editar
+        if ($movement->sale_id !== null) {
+            return back()->with('error', 'No se pueden editar movimientos generados por ventas.');
+        }
+
+        $data = $request->validate([
+            'type'     => ['required', 'in:entry,exit,adjustment'],
+            'quantity' => ['required', 'numeric', 'not_in:0'],
+            'reason'   => ['nullable', 'string', 'max:255'],
+        ]);
+
+        $product     = $movement->product;
+        $newQuantity = (float) $data['quantity'];
+        $newType     = $data['type'];
+
+        // Efecto que el movimiento original tuvo sobre el stock
+        $oldDelta = match ($movement->type) {
+            'entry'      =>  (float) $movement->quantity,
+            'exit'       => -(float) $movement->quantity,
+            'adjustment' =>  (float) $movement->quantity,
+        };
+
+        // Efecto que el movimiento editado tendrá sobre el stock
+        $newDelta = match ($newType) {
+            'entry'      =>  $newQuantity,
+            'exit'       => -$newQuantity,
+            'adjustment' =>  $newQuantity,
+        };
+
+        // Stock actual del producto: revertir viejo efecto y aplicar nuevo efecto
+        $updatedProductStock = (float) $product->stock - $oldDelta + $newDelta;
+
+        if ($updatedProductStock < 0) {
+            return back()->withErrors([
+                'quantity' => 'La modificación resultaría en stock negativo.',
+            ]);
+        }
+
+        DB::transaction(function () use ($movement, $product, $newType, $newQuantity, $newDelta, $updatedProductStock, $data) {
+            $product->update(['stock' => $updatedProductStock]);
+
+            $movement->update([
+                'type'      => $newType,
+                'quantity'  => $newQuantity,
+                // previous_stock no cambia: sigue siendo lo que había antes de que este movimiento ocurriera
+                'new_stock' => (float) $movement->previous_stock + $newDelta,
+                'reason'    => $data['reason'] ?? null,
+            ]);
+        });
+
+        return back()->with('success', 'Movimiento actualizado y stock recalculado.');
+    }
+
+    public function destroy(InventoryMovement $movement): RedirectResponse
+    {
+        $product = $movement->product;
+
+        // Calcular cuánto hay que revertir del stock actual
+        $delta = match ($movement->type) {
+            'entry'      =>  (float) $movement->quantity,
+            'exit'       => -(float) $movement->quantity,
+            'adjustment' =>  (float) $movement->quantity,
+        };
+
+        $stockAfterRevert = (float) $product->stock - $delta;
+
+        if ($stockAfterRevert < 0) {
+            return back()->with('error', 'No se puede eliminar: revertir este movimiento dejaría el stock en negativo.');
+        }
+
+        DB::transaction(function () use ($movement, $product, $stockAfterRevert) {
+            $product->update(['stock' => $stockAfterRevert]);
+            $movement->delete();
+        });
+
+        return back()->with('success', 'Movimiento eliminado y stock revertido.');
     }
 }

@@ -1,11 +1,9 @@
 import AppLayout from '@/layouts/app-layout';
-import { type BreadcrumbItem } from '@/types';
 import {
     Button,
     Card,
     CardBody,
     CardHeader,
-    Chip,
     Pagination,
     Table,
     TableBody,
@@ -16,15 +14,12 @@ import {
 } from '@heroui/react';
 import { Head, router, useForm } from '@inertiajs/react';
 import {
-    AlertTriangle,
-    ArrowLeft,
-    Calendar,
+    AlertCircle,
+    ArrowRight,
     CheckCircle,
-    DollarSign,
     Edit2,
     Package,
     Plus,
-    ShoppingCart,
     Trash2,
     X,
     XCircle,
@@ -34,10 +29,6 @@ import { useState } from 'react';
 interface Category {
     id: number;
     name: string;
-    description: string | null;
-    is_active: boolean;
-    products_count: number;
-    created_at: string;
 }
 
 interface Product {
@@ -45,7 +36,7 @@ interface Product {
     sku: string;
     name: string;
     description: string | null;
-    category: { name: string };
+    category: Category;
     purchase_price: number;
     sale_price: number;
     price_per_kg: number | null;
@@ -57,10 +48,10 @@ interface Product {
     expiration_date: string | null;
     image: string | null;
     is_active: boolean;
+    is_stored: boolean;
 }
 
 interface Props {
-    category: Category;
     products: {
         data: Product[];
         current_page: number;
@@ -68,17 +59,33 @@ interface Props {
         per_page: number;
         total: number;
     };
+    categories: Category[];
+    filters: {
+        search?: string;
+        category_id?: number;
+        low_stock?: boolean;
+    };
 }
 
-export default function CategoryShow({ category, products }: Props) {
-    const [isModalOpen, setIsModalOpen] = useState(false);
+export default function ProductsIndex({
+    products,
+    categories,
+    filters,
+}: Props) {
+    const [search, setSearch] = useState(filters.search || '');
+    const [categoryFilter, setCategoryFilter] = useState(
+        filters.category_id?.toString() || '',
+    );
     const [editingProduct, setEditingProduct] = useState<Product | null>(null);
+    const [isModalOpen, setIsModalOpen] = useState(false);
+    const [isMoveProductModalOpen, setIsMoveProductModalOpen] = useState(false);
+    const [productToMove, setProductToMove] = useState<any>(null);
 
-    const { data, setData, post, put, processing, errors, reset } = useForm({
+    const { data, setData, processing, errors, reset } = useForm({
         sku: '',
         name: '',
         description: '',
-        category_id: category.id.toString(),
+        category_id: '',
         purchase_price: '',
         sale_price: '',
         price_per_kg: '',
@@ -89,36 +96,22 @@ export default function CategoryShow({ category, products }: Props) {
         allow_fractional_sale: false,
         expiration_date: '',
         is_active: true,
-        stay_on_category: true,
     });
 
-    const breadcrumbs: BreadcrumbItem[] = [
-        {
-            title: 'Categorías',
-            href: '/categories',
-        },
-        {
-            title: category.name,
-            href: `/categories/${category.id}`,
-        },
-    ];
+    console.log(products);
 
-    const formatCurrency = (amount: number) => {
-        return new Intl.NumberFormat('es-PE', {
-            style: 'currency',
-            currency: 'PEN',
-        }).format(amount);
-    };
+    const products_ = products.data.filter(
+        (product) => product.is_stored === true,
+    );
 
     const openModal = (product?: Product) => {
         if (product) {
-            console.log('Product data:', product); // Debug
             setEditingProduct(product);
             setData({
                 sku: product.sku,
                 name: product.name,
                 description: product.description || '',
-                category_id: category.id.toString(),
+                category_id: product.category.id.toString(),
                 purchase_price: product.purchase_price.toString(),
                 sale_price: product.sale_price.toString(),
                 price_per_kg: product.price_per_kg?.toString() || '',
@@ -129,13 +122,10 @@ export default function CategoryShow({ category, products }: Props) {
                 allow_fractional_sale: product.allow_fractional_sale,
                 expiration_date: product.expiration_date || '',
                 is_active: product.is_active,
-                stay_on_category: true,
             });
         } else {
             setEditingProduct(null);
             reset();
-            setData('category_id', category.id.toString());
-            setData('stay_on_category', true);
         }
         setIsModalOpen(true);
     };
@@ -146,205 +136,145 @@ export default function CategoryShow({ category, products }: Props) {
         reset();
     };
 
+    const transferProduct = (id: number, isStored: boolean) => {
+        console.log(id);
+        router.patch(
+            `/store/${id}/toggle-stored`,
+            { is_stored: isStored },
+            {
+                onSuccess: () => {
+                    closeModal();
+                },
+                onError: (e) => {
+                    console.log(e);
+                },
+            },
+        );
+        setProductToMove(null);
+    };
+
     const handleSubmit = (e: React.FormEvent) => {
         e.preventDefault();
-        const onSuccess = () => {
-            closeModal();
-        };
 
-        if (editingProduct) {
-            put(`/products/${editingProduct.id}`, {
-                preserveState: true,
-                preserveScroll: true,
-                onSuccess,
-            });
-        } else {
-            post('/products', {
-                preserveState: true,
-                preserveScroll: true,
-                onSuccess,
-            });
-        }
-    };
+        const url = editingProduct ? `/store/${editingProduct.id}` : '/store';
 
-    const handleDelete = (productId: number) => {
-        if (confirm('¿Estás seguro de eliminar este producto?')) {
-            router.delete(`/products/${productId}`, {
-                preserveScroll: true,
-            });
-        }
-    };
+        const method = editingProduct ? 'put' : 'post';
 
-    const handlePageChange = (page: number) => {
-        router.get(
-            `/categories/${category.id}`,
-            { page },
+        router[method](
+            url,
+            { ...data, is_stored: true },
             {
-                preserveState: true,
-                preserveScroll: true,
+                onSuccess: () => {
+                    closeModal();
+                },
+                onError: (e) => {
+                    console.log(e);
+                },
             },
         );
     };
 
-    // Calcular estadísticas
-    const totalProducts = products.total;
-    const activeProducts = products.data.filter((p) => p.is_active).length;
-    const lowStockProducts = products.data.filter(
-        (p) => p.stock <= p.min_stock,
-    ).length;
-    const totalInventoryValue = products.data.reduce(
-        (sum, p) => sum + p.stock * p.purchase_price,
-        0,
-    );
+    const handleDelete = (id: number) => {
+        if (confirm('¿Estás seguro de eliminar este producto?')) {
+            router.delete(`/store/${id}`);
+        }
+    };
+
+    const handleSearch = () => {
+        router.get(
+            '/store',
+            { search, category_id: categoryFilter },
+            { preserveState: true },
+        );
+    };
+
+    const formatCurrency = (amount: number) => {
+        return new Intl.NumberFormat('es-PE', {
+            style: 'currency',
+            currency: 'PEN',
+        }).format(amount);
+    };
 
     return (
-        <AppLayout breadcrumbs={breadcrumbs}>
-            <Head title={`${category.name} - Categorías`} />
+        <AppLayout>
+            <Head title="Productos" />
 
             <div className="flex h-full flex-1 flex-col gap-6 p-6">
-                {/* Header */}
                 <div className="flex items-center justify-between">
                     <div>
-                        <div className="mb-2 flex items-center gap-3">
-                            <Button
-                                isIconOnly
-                                variant="flat"
-                                onPress={() => router.visit('/categories')}
-                            >
-                                <ArrowLeft className="h-5 w-5" />
-                            </Button>
-                            <h1 className="text-2xl font-bold">
-                                {category.name}
-                            </h1>
-                            <Chip
-                                color={
-                                    category.is_active ? 'success' : 'danger'
-                                }
-                                variant="flat"
-                            >
-                                {category.is_active ? 'Activa' : 'Inactiva'}
-                            </Chip>
-                        </div>
-                        {category.description && (
-                            <p className="text-default-500 ml-14">
-                                {category.description}
-                            </p>
-                        )}
+                        <h1 className="text-2xl font-bold">Productos</h1>
+                        <p className="text-default-500">
+                            Gestiona el inventario de productos
+                        </p>
                     </div>
+                    <Button
+                        color="primary"
+                        startContent={<Plus className="h-5 w-5" />}
+                        onPress={() => openModal()}
+                        size="lg"
+                        className="rounded-2xl font-semibold shadow-lg"
+                    >
+                        Nuevo Producto
+                    </Button>
                 </div>
 
-                {/* Estadísticas */}
-                <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4">
-                    {/* Total Productos */}
-                    <Card className="rounded-3xl border-none bg-gradient-to-br from-blue-500 to-blue-600 shadow-2xl">
-                        <CardBody className="p-6">
-                            <div className="flex items-start justify-between">
-                                <div className="text-white">
-                                    <p className="mb-2 text-sm font-medium opacity-90">
-                                        Total Productos
-                                    </p>
-                                    <h2 className="text-4xl font-bold">
-                                        {totalProducts}
-                                    </h2>
-                                    <p className="mt-3 text-sm font-medium">
-                                        productos registrados
-                                    </p>
-                                </div>
-                                <div className="rounded-2xl bg-white/20 p-4">
-                                    <Package className="h-10 w-10 text-white" />
-                                </div>
-                            </div>
-                        </CardBody>
-                    </Card>
-
-                    {/* Productos Activos */}
-                    <Card className="rounded-3xl border-none bg-gradient-to-br from-green-500 to-green-600 shadow-2xl">
-                        <CardBody className="p-6">
-                            <div className="flex items-start justify-between">
-                                <div className="text-white">
-                                    <p className="mb-2 text-sm font-medium opacity-90">
-                                        Productos Activos
-                                    </p>
-                                    <h2 className="text-4xl font-bold">
-                                        {activeProducts}
-                                    </h2>
-                                    <p className="mt-3 text-sm font-medium">
-                                        disponibles para venta
-                                    </p>
-                                </div>
-                                <div className="rounded-2xl bg-white/20 p-4">
-                                    <ShoppingCart className="h-10 w-10 text-white" />
-                                </div>
-                            </div>
-                        </CardBody>
-                    </Card>
-
-                    {/* Stock Bajo */}
-                    <Card className="rounded-3xl border-none bg-gradient-to-br from-orange-500 to-orange-600 shadow-2xl">
-                        <CardBody className="p-6">
-                            <div className="flex items-start justify-between">
-                                <div className="text-white">
-                                    <p className="mb-2 text-sm font-medium opacity-90">
-                                        Stock Bajo
-                                    </p>
-                                    <h2 className="text-4xl font-bold">
-                                        {lowStockProducts}
-                                    </h2>
-                                    <p className="mt-3 text-sm font-medium">
-                                        productos con alerta
-                                    </p>
-                                </div>
-                                <div className="rounded-2xl bg-white/20 p-4">
-                                    <AlertTriangle className="h-10 w-10 text-white" />
-                                </div>
-                            </div>
-                        </CardBody>
-                    </Card>
-
-                    {/* Valor del Inventario */}
-                    <Card className="rounded-3xl border-none bg-gradient-to-br from-purple-500 to-purple-600 shadow-2xl">
-                        <CardBody className="p-6">
-                            <div className="flex items-start justify-between">
-                                <div className="text-white">
-                                    <p className="mb-2 text-sm font-medium opacity-90">
-                                        Valor Inventario
-                                    </p>
-                                    <h2 className="text-2xl font-bold">
-                                        {formatCurrency(totalInventoryValue)}
-                                    </h2>
-                                    <p className="mt-3 text-sm font-medium">
-                                        inversión total
-                                    </p>
-                                </div>
-                                <div className="rounded-2xl bg-white/20 p-4">
-                                    <DollarSign className="h-10 w-10 text-white" />
-                                </div>
-                            </div>
-                        </CardBody>
-                    </Card>
-                </div>
-
-                {/* Tabla de Productos */}
                 <Card className="rounded-3xl border-none shadow-2xl dark:bg-[#18181b]">
                     <CardHeader className="px-6 pt-6 pb-4">
-                        <div className="flex w-full items-center justify-between">
-                            <h2 className="text-xl font-bold">
-                                Productos de la Categoría
-                            </h2>
-                            <Button
-                                color="primary"
-                                startContent={<Plus className="h-5 w-5" />}
-                                onPress={() => openModal()}
-                                size="lg"
-                                className="rounded-2xl font-semibold shadow-lg"
-                            >
-                                Nuevo Producto
-                            </Button>
+                        <div className="grid w-full gap-4 md:grid-cols-3">
+                            <div className="flex flex-col gap-2 md:col-span-2">
+                                <span className="text-default-700 dark:text-default-200 text-sm font-semibold">
+                                    Buscar producto
+                                </span>
+                                <input
+                                    type="text"
+                                    placeholder="Nombre o SKU"
+                                    value={search}
+                                    onChange={(e) => setSearch(e.target.value)}
+                                    onKeyDown={(e) =>
+                                        e.key === 'Enter' && handleSearch()
+                                    }
+                                    className="border-default-300/40 dark:border-default-600/40 hover:border-default-400/60 dark:hover:border-default-500/60 placeholder:text-default-400 w-full rounded-xl border-2 bg-transparent px-4 py-3 text-foreground transition-all duration-200 outline-none focus:border-primary/70 dark:focus:border-primary/70"
+                                />
+                            </div>
+
+                            <div className="flex flex-col gap-2">
+                                <span className="text-default-700 dark:text-default-200 text-sm font-semibold">
+                                    Categoría
+                                </span>
+                                <select
+                                    value={categoryFilter}
+                                    onChange={(e) =>
+                                        setCategoryFilter(e.target.value)
+                                    }
+                                    className="border-default-300/40 dark:border-default-600/40 hover:border-default-400/60 dark:hover:border-default-500/60 w-full rounded-xl border-2 bg-white px-4 py-3 text-foreground transition-all duration-200 outline-none focus:border-primary/70 dark:bg-[#09090b] dark:focus:border-primary/70 [&>option]:my-1 [&>option]:rounded-lg [&>option]:bg-white [&>option]:px-2 [&>option]:text-foreground [&>option]:dark:bg-[#09090b]"
+                                >
+                                    <option value="">
+                                        Todas las categorías
+                                    </option>
+                                    {categories.map((category) => (
+                                        <option
+                                            key={category.id}
+                                            value={category.id.toString()}
+                                        >
+                                            {category.name}
+                                        </option>
+                                    ))}
+                                </select>
+                                <Button
+                                    color="primary"
+                                    onPress={handleSearch}
+                                    size="lg"
+                                    className="w-full rounded-2xl px-8 font-semibold"
+                                >
+                                    Buscar
+                                </Button>
+                            </div>
                         </div>
                     </CardHeader>
-                    <CardBody className="px-6 pb-6">
+                    <CardBody className="pt-2">
                         <Table
-                            aria-label="Tabla de productos de la categoría"
+                            aria-label="Tabla de productos"
+                            className="min-w-full"
                             classNames={{
                                 wrapper: 'rounded-2xl shadow-none',
                                 th: 'bg-default-100 text-default-700 font-bold',
@@ -352,159 +282,227 @@ export default function CategoryShow({ category, products }: Props) {
                             }}
                         >
                             <TableHeader>
-                                <TableColumn>SKU</TableColumn>
                                 <TableColumn>PRODUCTO</TableColumn>
-                                <TableColumn>PRECIO COMPRA</TableColumn>
-                                <TableColumn>PRECIO VENTA</TableColumn>
+                                <TableColumn>CATEGORÍA</TableColumn>
                                 <TableColumn>STOCK</TableColumn>
-                                <TableColumn>MARGEN</TableColumn>
+                                <TableColumn>PRECIO</TableColumn>
                                 <TableColumn>ESTADO</TableColumn>
                                 <TableColumn>ACCIONES</TableColumn>
                             </TableHeader>
-                            <TableBody
-                                emptyContent={
-                                    <div className="text-default-400 py-12 text-center">
-                                        <p className="text-sm">
-                                            No hay productos en esta categoría
-                                        </p>
-                                    </div>
-                                }
-                            >
-                                {products.data.map((product) => {
-                                    const margin =
-                                        ((product.sale_price -
-                                            product.purchase_price) /
-                                            product.purchase_price) *
-                                        100;
-                                    const isLowStock =
-                                        product.stock <= product.min_stock;
+                            <TableBody>
+                                {products_.map((product) => (
+                                    <TableRow key={product.id}>
+                                        <TableCell>
+                                            <div>
+                                                <p className="font-semibold">
+                                                    {product.name}
+                                                </p>
+                                                <p className="text-default-500 text-xs">
+                                                    SKU: {product.sku}
+                                                </p>
+                                            </div>
+                                        </TableCell>
+                                        <TableCell>
+                                            {product.category.name}
+                                        </TableCell>
+                                        <TableCell>
+                                            <div className="flex items-center gap-2">
+                                                {product.stock <=
+                                                product.min_stock ? (
+                                                    <AlertCircle className="text-warning h-4 w-4" />
+                                                ) : null}
+                                                <span
+                                                    className={
+                                                        product.stock <=
+                                                        product.min_stock
+                                                            ? 'text-warning font-semibold'
+                                                            : ''
+                                                    }
+                                                >
+                                                    {product.stock}{' '}
+                                                    {product.unit}
+                                                </span>
+                                            </div>
+                                        </TableCell>
+                                        <TableCell>
+                                            {formatCurrency(product.sale_price)}
+                                        </TableCell>
+                                        <TableCell>
+                                            <Button
+                                                size="sm"
+                                                variant="flat"
+                                                color={
+                                                    product.is_active
+                                                        ? 'success'
+                                                        : 'danger'
+                                                }
+                                                isDisabled
+                                                className={`inline-flex cursor-default items-center gap-2 rounded-lg font-semibold ${product.is_active ? 'text-green-600' : 'text-red-600'}`}
+                                                startContent={
+                                                    product.is_active ? (
+                                                        <CheckCircle className="h-4 w-4" />
+                                                    ) : (
+                                                        <XCircle className="h-4 w-4" />
+                                                    )
+                                                }
+                                            >
+                                                {product.is_active
+                                                    ? 'Activo'
+                                                    : 'Inactivo'}
+                                            </Button>
+                                        </TableCell>
+                                        <TableCell className="">
+                                            <div className="flex gap-1">
+                                                <Button
+                                                    isIconOnly
+                                                    size="sm"
+                                                    variant="flat"
+                                                    className="rounded-full bg-emerald-400 text-white"
+                                                    onPress={() =>
+                                                        openModal(product)
+                                                    }
+                                                >
+                                                    <Edit2 className="h-4 w-4" />
+                                                </Button>
+                                                <Button
+                                                    isIconOnly
+                                                    size="sm"
+                                                    color="danger"
+                                                    variant="flat"
+                                                    className="rounded-full bg-red-400"
+                                                    onPress={() =>
+                                                        handleDelete(product.id)
+                                                    }
+                                                >
+                                                    <Trash2 className="h-4 w-4" />
+                                                </Button>
 
-                                    return (
-                                        <TableRow key={product.id}>
-                                            <TableCell>
-                                                <span className="font-mono text-sm">
-                                                    {product.sku}
-                                                </span>
-                                            </TableCell>
-                                            <TableCell>
-                                                <div>
-                                                    <p className="font-semibold">
-                                                        {product.name}
-                                                    </p>
-                                                    {product.expiration_date && (
-                                                        <p className="text-default-500 flex items-center gap-1 text-xs">
-                                                            <Calendar className="h-3 w-3" />
-                                                            Vence:{' '}
-                                                            {new Date(
-                                                                product.expiration_date,
-                                                            ).toLocaleDateString(
-                                                                'es-PE',
-                                                            )}
-                                                        </p>
-                                                    )}
-                                                </div>
-                                            </TableCell>
-                                            <TableCell>
-                                                {formatCurrency(
-                                                    product.purchase_price,
+                                                <Button
+                                                    size="sm"
+                                                    onClick={() => {
+                                                        setProductToMove(
+                                                            product,
+                                                        );
+                                                        setIsMoveProductModalOpen(
+                                                            true,
+                                                        );
+                                                    }}
+                                                    className="rounded-2xl bg-blue-500 text-white"
+                                                >
+                                                    <ArrowRight />
+                                                    Mover para venta
+                                                </Button>
+                                                {isMoveProductModalOpen && (
+                                                    <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4">
+                                                        {/* Backdrop */}
+                                                        <div
+                                                            className="absolute inset-0 bg-black/10 backdrop-blur-sm"
+                                                            onClick={() =>
+                                                                setIsMoveProductModalOpen(
+                                                                    false,
+                                                                )
+                                                            }
+                                                        />
+
+                                                        {/* Modal Content */}
+                                                        <div className="border-divider relative z-10 max-h-[90vh] overflow-y-auto rounded-3xl border bg-white shadow-2xl dark:bg-[#09090b]">
+                                                            <form className="flex flex-col">
+                                                                <div className="border-divider sticky top-0 z-10 flex items-center justify-between border-b bg-white bg-gradient-to-r from-primary/10 to-secondary/10 p-6 dark:bg-[#09090b]">
+                                                                    <div className="flex items-center gap-3">
+                                                                        <div className="rounded-xl bg-primary p-2.5">
+                                                                            <Package className="h-6 w-6 text-primary-foreground" />
+                                                                        </div>
+                                                                        <div>
+                                                                            <h2 className="text-2xl font-bold">
+                                                                                Mover
+                                                                                Producto
+                                                                            </h2>
+                                                                        </div>
+                                                                    </div>
+                                                                    <Button
+                                                                        isIconOnly
+                                                                        variant="light"
+                                                                        onPress={() => {
+                                                                            setProductToMove(
+                                                                                null,
+                                                                            );
+                                                                            setIsMoveProductModalOpen(
+                                                                                false,
+                                                                            );
+                                                                        }}
+                                                                        className="rounded-full"
+                                                                        size="lg"
+                                                                    >
+                                                                        <X className="h-6 w-6" />
+                                                                    </Button>
+                                                                </div>
+
+                                                                {/* Body */}
+                                                                <div className="space-y-8 bg-white p-8 dark:bg-[#09090b]">
+                                                                    <p>
+                                                                        ¿Esta
+                                                                        seguro
+                                                                        de mover
+                                                                        este
+                                                                        producto?
+                                                                    </p>
+                                                                    <p>
+                                                                        El
+                                                                        producto
+                                                                        pasara a
+                                                                        estar
+                                                                        disponible
+                                                                        en la
+                                                                        seccion
+                                                                        de
+                                                                        ventas y
+                                                                        productos.
+                                                                    </p>
+                                                                </div>
+
+                                                                {/* Footer */}
+                                                                <div className="border-divider bg-default-50 sticky bottom-0 flex items-center justify-end gap-3 border-t p-6 dark:bg-[#18181b]">
+                                                                    <Button
+                                                                        variant="flat"
+                                                                        onPress={() => {
+                                                                            setProductToMove(
+                                                                                null,
+                                                                            );
+                                                                            setIsMoveProductModalOpen(
+                                                                                false,
+                                                                            );
+                                                                        }}
+                                                                        size="lg"
+                                                                        className="rounded-xl font-medium"
+                                                                    >
+                                                                        Cancelar
+                                                                    </Button>
+                                                                    <Button
+                                                                        color="primary"
+                                                                        type="submit"
+                                                                        size="lg"
+                                                                        onPress={() =>
+                                                                            transferProduct(
+                                                                                productToMove.id,
+                                                                                productToMove.is_stored,
+                                                                            )
+                                                                        }
+                                                                        className="rounded-xl px-8 font-semibold"
+                                                                    >
+                                                                        Mover
+                                                                        Producto
+                                                                        para
+                                                                        venta
+                                                                    </Button>
+                                                                </div>
+                                                            </form>
+                                                        </div>
+                                                    </div>
                                                 )}
-                                            </TableCell>
-                                            <TableCell>
-                                                <span className="font-semibold text-primary">
-                                                    {formatCurrency(
-                                                        product.sale_price,
-                                                    )}
-                                                </span>
-                                            </TableCell>
-                                            <TableCell>
-                                                <div>
-                                                    <p
-                                                        className={
-                                                            isLowStock
-                                                                ? 'text-danger font-bold'
-                                                                : ''
-                                                        }
-                                                    >
-                                                        {product.stock}{' '}
-                                                        {product.unit}
-                                                    </p>
-                                                    {isLowStock && (
-                                                        <p className="text-danger text-xs">
-                                                            ⚠️ Stock mínimo:{' '}
-                                                            {product.min_stock}
-                                                        </p>
-                                                    )}
-                                                </div>
-                                            </TableCell>
-                                            <TableCell>
-                                                <Chip
-                                                    color={
-                                                        margin >= 30
-                                                            ? 'success'
-                                                            : margin >= 15
-                                                              ? 'warning'
-                                                              : 'danger'
-                                                    }
-                                                    variant="flat"
-                                                    size="sm"
-                                                >
-                                                    {margin.toFixed(1)}%
-                                                </Chip>
-                                            </TableCell>
-                                            <TableCell>
-                                                <Chip
-                                                    color={
-                                                        product.is_active
-                                                            ? 'success'
-                                                            : 'danger'
-                                                    }
-                                                    variant="flat"
-                                                    size="sm"
-                                                    className={`rounded-lg ${product.is_active ? 'text-green-600' : 'text-red-600'}`}
-                                                    startContent={
-                                                        product.is_active ? (
-                                                            <CheckCircle className="h-4 w-4" />
-                                                        ) : (
-                                                            <XCircle className="h-4 w-4" />
-                                                        )
-                                                    }
-                                                >
-                                                    {product.is_active
-                                                        ? 'Activo'
-                                                        : 'Inactivo'}
-                                                </Chip>
-                                            </TableCell>
-                                            <TableCell>
-                                                <div className="flex items-center gap-2">
-                                                    <Button
-                                                        isIconOnly
-                                                        size="sm"
-                                                        variant="flat"
-                                                        onPress={() =>
-                                                            openModal(product)
-                                                        }
-                                                        className="rounded-lg bg-blue-100 text-blue-600 hover:bg-blue-200 dark:bg-blue-950/50 dark:text-blue-400 dark:hover:bg-blue-900/50"
-                                                    >
-                                                        <Edit2 className="h-4 w-4" />
-                                                    </Button>
-                                                    <Button
-                                                        isIconOnly
-                                                        size="sm"
-                                                        variant="flat"
-                                                        onPress={() =>
-                                                            handleDelete(
-                                                                product.id,
-                                                            )
-                                                        }
-                                                        className="rounded-lg bg-red-100 text-red-600 hover:bg-red-200 dark:bg-red-950/50 dark:text-red-400 dark:hover:bg-red-900/50"
-                                                    >
-                                                        <Trash2 className="h-4 w-4" />
-                                                    </Button>
-                                                </div>
-                                            </TableCell>
-                                        </TableRow>
-                                    );
-                                })}
+                                            </div>
+                                        </TableCell>
+                                    </TableRow>
+                                ))}
                             </TableBody>
                         </Table>
 
@@ -513,8 +511,9 @@ export default function CategoryShow({ category, products }: Props) {
                                 <Pagination
                                     total={products.last_page}
                                     page={products.current_page}
-                                    onChange={handlePageChange}
-                                    showControls
+                                    onChange={(page) =>
+                                        router.get('/products', { page })
+                                    }
                                 />
                             </div>
                         )}
@@ -522,7 +521,7 @@ export default function CategoryShow({ category, products }: Props) {
                 </Card>
             </div>
 
-            {/* Modal CRUD Producto */}
+            {/* Modal Overlay Personalizado */}
             {isModalOpen && (
                 <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4">
                     {/* Backdrop */}
@@ -532,10 +531,10 @@ export default function CategoryShow({ category, products }: Props) {
                     />
 
                     {/* Modal Content */}
-                    <div className="border-divider relative z-10 max-h-[90vh] w-full max-w-4xl overflow-y-auto rounded-3xl border bg-white shadow-2xl dark:bg-[#09090b]">
+                    <div className="border-divider relative z-10 max-h-[90vh] w-full max-w-5xl overflow-y-auto rounded-3xl border bg-white shadow-2xl dark:bg-[#09090b]">
                         <form onSubmit={handleSubmit} className="flex flex-col">
                             {/* Header */}
-                            <div className="border-divider sticky top-0 z-10 flex items-center justify-between border-b bg-white bg-gradient-to-r from-primary/5 to-secondary/5 p-6 dark:bg-[#09090b]">
+                            <div className="border-divider sticky top-0 z-10 flex items-center justify-between border-b bg-white bg-gradient-to-r from-primary/10 to-secondary/10 p-6 dark:bg-[#09090b]">
                                 <div className="flex items-center gap-3">
                                     <div className="rounded-xl bg-primary p-2.5">
                                         <Package className="h-6 w-6 text-primary-foreground" />
@@ -547,7 +546,9 @@ export default function CategoryShow({ category, products }: Props) {
                                                 : 'Nuevo Producto'}
                                         </h2>
                                         <p className="text-default-500 mt-1 text-sm">
-                                            Categoría: {category.name}
+                                            {editingProduct
+                                                ? 'Modifica la información del producto'
+                                                : 'Completa los datos del nuevo producto'}
                                         </p>
                                     </div>
                                 </div>
@@ -557,22 +558,21 @@ export default function CategoryShow({ category, products }: Props) {
                                     onPress={closeModal}
                                     className="rounded-full"
                                     size="lg"
-                                    type="button"
                                 >
                                     <X className="h-6 w-6" />
                                 </Button>
                             </div>
 
                             {/* Body */}
-                            <div className="space-y-6 bg-white p-8 dark:bg-[#09090b]">
+                            <div className="space-y-8 bg-white p-8 dark:bg-[#09090b]">
                                 {/* Información Básica */}
-                                <div className="space-y-4">
+                                <div className="space-y-6">
                                     <h3 className="flex items-center gap-2 text-lg font-semibold">
                                         <div className="h-1 w-1 rounded-full bg-primary" />
                                         Información Básica
                                     </h3>
 
-                                    <div className="grid gap-4 md:grid-cols-2">
+                                    <div className="grid gap-6 md:grid-cols-2">
                                         <div className="space-y-2">
                                             <label className="text-default-700 dark:text-default-300 block text-sm font-semibold">
                                                 SKU / Código{' '}
@@ -591,6 +591,7 @@ export default function CategoryShow({ category, products }: Props) {
                                                     )
                                                 }
                                                 required
+                                                autoFocus
                                                 className="border-default-300/40 dark:border-default-600/40 hover:border-default-400/60 dark:hover:border-default-500/60 placeholder:text-default-400 w-full rounded-xl border-2 bg-transparent px-4 py-3 text-foreground transition-all duration-200 outline-none focus:border-primary/70 dark:focus:border-primary/70"
                                             />
                                             {errors.sku && (
@@ -598,6 +599,9 @@ export default function CategoryShow({ category, products }: Props) {
                                                     {errors.sku}
                                                 </p>
                                             )}
+                                            <p className="text-default-400 text-xs">
+                                                Código único del producto
+                                            </p>
                                         </div>
 
                                         <div className="space-y-2">
@@ -620,6 +624,9 @@ export default function CategoryShow({ category, products }: Props) {
                                                 required
                                                 className="border-default-300/40 dark:border-default-600/40 hover:border-default-400/60 dark:hover:border-default-500/60 placeholder:text-default-400 w-full rounded-xl border-2 bg-transparent px-4 py-3 text-foreground transition-all duration-200 outline-none focus:border-primary/70 dark:focus:border-primary/70"
                                             />
+                                            <p className="text-default-400 text-xs">
+                                                Cómo se mide este producto
+                                            </p>
                                         </div>
                                     </div>
 
@@ -646,18 +653,76 @@ export default function CategoryShow({ category, products }: Props) {
                                             </p>
                                         )}
                                     </div>
+
+                                    <div className="space-y-2">
+                                        <label className="text-default-700 dark:text-default-300 block text-sm font-semibold">
+                                            Descripción
+                                        </label>
+                                        <textarea
+                                            placeholder="Describe el producto..."
+                                            value={data.description}
+                                            onChange={(e) =>
+                                                setData(
+                                                    'description',
+                                                    e.target.value,
+                                                )
+                                            }
+                                            rows={3}
+                                            className="border-default-300/40 dark:border-default-600/40 hover:border-default-400/60 dark:hover:border-default-500/60 placeholder:text-default-400 w-full resize-none rounded-xl border-2 bg-transparent px-4 py-3 text-foreground transition-all duration-200 outline-none focus:border-primary/70 dark:focus:border-primary/70"
+                                        />
+                                        <p className="text-default-400 text-xs">
+                                            Opcional - Información adicional
+                                        </p>
+                                    </div>
+
+                                    <div className="space-y-2">
+                                        <label className="text-default-700 dark:text-default-300 block text-sm font-semibold">
+                                            Categoría{' '}
+                                            <span className="text-danger">
+                                                *
+                                            </span>
+                                        </label>
+                                        <select
+                                            value={data.category_id}
+                                            onChange={(e) =>
+                                                setData(
+                                                    'category_id',
+                                                    e.target.value,
+                                                )
+                                            }
+                                            required
+                                            className="border-default-300/40 dark:border-default-600/40 hover:border-default-400/60 dark:hover:border-default-500/60 w-full rounded-xl border-2 bg-white px-4 py-3 text-foreground transition-all duration-200 outline-none focus:border-primary/70 dark:bg-[#09090b] dark:focus:border-primary/70 [&>option]:my-1 [&>option]:rounded-lg [&>option]:bg-white [&>option]:px-2 [&>option]:text-foreground [&>option]:dark:bg-[#09090b]"
+                                        >
+                                            <option value="">
+                                                Selecciona una categoría
+                                            </option>
+                                            {categories.map((cat) => (
+                                                <option
+                                                    key={cat.id}
+                                                    value={cat.id}
+                                                >
+                                                    {cat.name}
+                                                </option>
+                                            ))}
+                                        </select>
+                                        {errors.category_id && (
+                                            <p className="text-danger text-xs">
+                                                {errors.category_id}
+                                            </p>
+                                        )}
+                                    </div>
                                 </div>
 
                                 {/* Separador */}
                                 <div className="border-divider border-t" />
 
                                 {/* Precios */}
-                                <div className="space-y-4">
+                                <div className="space-y-6">
                                     <h3 className="flex items-center gap-2 text-lg font-semibold">
                                         <div className="bg-success h-1 w-1 rounded-full" />
                                         Precios
                                     </h3>
-                                    <div className="grid gap-4 md:grid-cols-2">
+                                    <div className="grid gap-6 md:grid-cols-2">
                                         <div className="space-y-2">
                                             <label className="text-default-700 dark:text-default-300 block text-sm font-semibold">
                                                 Precio de Compra{' '}
@@ -689,6 +754,9 @@ export default function CategoryShow({ category, products }: Props) {
                                                     {errors.purchase_price}
                                                 </p>
                                             )}
+                                            <p className="text-default-400 text-xs">
+                                                Costo unitario
+                                            </p>
                                         </div>
 
                                         <div className="space-y-2">
@@ -722,23 +790,54 @@ export default function CategoryShow({ category, products }: Props) {
                                                     {errors.sale_price}
                                                 </p>
                                             )}
+                                            <p className="text-default-400 text-xs">
+                                                Precio al que vendes
+                                            </p>
                                         </div>
                                     </div>
+                                    {(() => {
+                                        const cost = parseFloat(
+                                            data.purchase_price || '',
+                                        );
+                                        const price = parseFloat(
+                                            data.sale_price || '',
+                                        );
+                                        const isValid =
+                                            Number.isFinite(cost) &&
+                                            Number.isFinite(price) &&
+                                            cost > 0 &&
+                                            price >= 0;
+                                        if (!isValid || price < cost)
+                                            return null;
+                                        const diff = price - cost;
+                                        const pct = (diff / cost) * 100;
+                                        return (
+                                            <div className="bg-success/10 border-success/20 rounded-xl border p-4">
+                                                <p className="text-success-700 dark:text-success-300 text-sm">
+                                                    <span className="font-semibold">
+                                                        Margen:
+                                                    </span>{' '}
+                                                    S/ {diff.toFixed(2)} (
+                                                    {pct.toFixed(1)}%)
+                                                </p>
+                                            </div>
+                                        );
+                                    })()}
                                 </div>
 
                                 {/* Separador */}
                                 <div className="border-divider border-t" />
 
                                 {/* Inventario */}
-                                <div className="space-y-4">
+                                <div className="space-y-6">
                                     <h3 className="flex items-center gap-2 text-lg font-semibold">
                                         <div className="bg-warning h-1 w-1 rounded-full" />
-                                        Inventario
+                                        Control de Inventario
                                     </h3>
-                                    <div className="grid gap-4 md:grid-cols-3">
+                                    <div className="grid gap-6 md:grid-cols-3">
                                         <div className="space-y-2">
                                             <label className="text-default-700 dark:text-default-300 block text-sm font-semibold">
-                                                Stock Inicial{' '}
+                                                Stock Actual{' '}
                                                 <span className="text-danger">
                                                     *
                                                 </span>
@@ -778,6 +877,9 @@ export default function CategoryShow({ category, products }: Props) {
                                                 required
                                                 className="border-default-300/40 dark:border-default-600/40 hover:border-default-400/60 dark:hover:border-default-500/60 placeholder:text-default-400 w-full rounded-xl border-2 bg-transparent px-4 py-3 text-foreground transition-all duration-200 outline-none focus:border-primary/70 dark:focus:border-primary/70"
                                             />
+                                            <p className="text-default-400 text-xs">
+                                                Alerta de bajo stock
+                                            </p>
                                         </div>
 
                                         <div className="space-y-2">
@@ -795,6 +897,9 @@ export default function CategoryShow({ category, products }: Props) {
                                                 }
                                                 className="border-default-300/40 dark:border-default-600/40 hover:border-default-400/60 dark:hover:border-default-500/60 w-full rounded-xl border-2 bg-transparent px-4 py-3 text-foreground transition-all duration-200 outline-none focus:border-primary/70 dark:focus:border-primary/70"
                                             />
+                                            <p className="text-default-400 text-xs">
+                                                Opcional
+                                            </p>
                                         </div>
                                     </div>
                                 </div>
@@ -803,12 +908,12 @@ export default function CategoryShow({ category, products }: Props) {
                                 <div className="border-divider border-t" />
 
                                 {/* Venta Fraccionada */}
-                                <div className="space-y-4">
+                                <div className="space-y-6">
                                     <h3 className="flex items-center gap-2 text-lg font-semibold">
                                         <div className="h-1 w-1 rounded-full bg-secondary" />
                                         Venta Fraccionada
                                     </h3>
-                                    <div className="grid gap-4 md:grid-cols-3">
+                                    <div className="grid gap-6 md:grid-cols-3">
                                         <div className="space-y-2">
                                             <label className="text-default-700 dark:text-default-300 block text-sm font-semibold">
                                                 Kilogramos por{' '}
@@ -972,7 +1077,6 @@ export default function CategoryShow({ category, products }: Props) {
                                     onPress={closeModal}
                                     isDisabled={processing}
                                     size="lg"
-                                    type="button"
                                     className="rounded-xl font-medium"
                                 >
                                     Cancelar

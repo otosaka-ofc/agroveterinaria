@@ -7,14 +7,15 @@ use App\Models\Product;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
 use Inertia\Inertia;
+use Illuminate\Validation\Rule;
 
-class ProductController extends Controller
+class StoreController extends Controller
 {
     public function index(Request $request)
     {
         $products = Product::query()
             ->with('category')
-            ->where('is_stored', false)
+            ->where('is_stored', true)
             ->when($request->search, function ($query, $search) {
                 $query->where(function ($q) use ($search) {
                     $q->where('name', 'like', "%{$search}%")
@@ -30,29 +31,29 @@ class ProductController extends Controller
             ->latest()
             ->paginate(15)
             ->withQueryString()
-            ->through(fn ($product) => [
-                'id' => $product->id,
-                'sku' => $product->sku,
-                'name' => $product->name,
-                'description' => $product->description,
-                'category' => $product->category,
-                'purchase_price' => $product->purchase_price,
-                'sale_price' => $product->sale_price,
-                'price_per_kg' => $product->price_per_kg,
-                'stock' => $product->stock,
-                'min_stock' => $product->min_stock,
-                'unit' => $product->unit,
-                'kg_per_unit' => $product->kg_per_unit,
-                'allow_fractional_sale' => $product->allow_fractional_sale,
-                'expiration_date' => $product->expiration_date?->format('Y-m-d'),
-                'image' => $product->image,
-                'is_active' => $product->is_active,
-                'is_stored' => $product->is_stored,
+            ->through(fn ($store) => [
+                'id' => $store->id,
+                'sku' => $store->sku,
+                'name' => $store->name,
+                'description' => $store->description,
+                'category' => $store->category,
+                'purchase_price' => $store->purchase_price,
+                'sale_price' => $store->sale_price,
+                'price_per_kg' => $store->price_per_kg,
+                'stock' => $store->stock,
+                'min_stock' => $store->min_stock,
+                'unit' => $store->unit,
+                'kg_per_unit' => $store->kg_per_unit,
+                'allow_fractional_sale' => $store->allow_fractional_sale,
+                'expiration_date' => $store->expiration_date?->format('Y-m-d'),
+                'image' => $store->image,
+                'is_active' => $store->is_active,
+                'is_stored' => $store->is_stored,
             ]);
 
         $categories = Category::where('is_active', true)->get();
 
-        return Inertia::render('Products/Index', [
+        return Inertia::render('Store/Index', [
             'products' => $products,
             'categories' => $categories,
             'filters' => $request->only(['search', 'category_id', 'low_stock']),
@@ -61,6 +62,8 @@ class ProductController extends Controller
 
     public function store(Request $request)
     {
+
+
         $validated = $request->validate([
             'sku' => 'required|string|max:255',
             'name' => 'required|string|max:255',
@@ -91,17 +94,17 @@ class ProductController extends Controller
             $validated['image'] = $request->file('image')->store('products', 'public');
         }
 
-        $product = Product::create($validated);
+        $store = Product::create($validated);
 
         // Registrar movimiento de inventario si hay stock inicial
-        if ($product->stock > 0) {
+        if ($store->stock > 0) {
             \App\Models\InventoryMovement::create([
-                'product_id' => $product->id,
+                'product_id' => $store->id,
                 'type' => 'entry',
-                'quantity' => $product->stock,
+                'quantity' => $store->stock,
                 'reason' => 'Stock inicial al crear producto',
                 'previous_stock' => 0,
-                'new_stock' => $product->stock,
+                'new_stock' => $store->stock,
                 'user_id' => auth()->id(),
             ]);
         }
@@ -111,12 +114,13 @@ class ProductController extends Controller
                 ->with('success', 'Producto creado exitosamente.');
         }
 
-        return redirect()->route('products.index')
+        return redirect()->route('store.index')
             ->with('success', 'Producto creado exitosamente.');
     }
 
-    public function update(Request $request, Product $product)
+    public function update(Request $request, Product $store)
     {
+
         $validated = $request->validate([
             'sku' => 'required|string|max:255',
             'name' => 'required|string|max:255',
@@ -133,52 +137,51 @@ class ProductController extends Controller
             'expiration_date' => 'nullable|date',
             'image' => 'nullable|image|max:2048',
             'is_active' => 'boolean',
-            'is_stored' => 'boolean'
         ]);
 
         // Verificar si el SKU ya existe en otro producto
-        if (Product::where('sku', $validated['sku'])->where('id', '!=', $product->id)->exists()) {
+        if (Product::where('sku', $validated['sku'])->where('id', '!=', $store->id)->exists()) {
             return back()->withErrors([
                 'sku' => 'El SKU ya existe. Por favor, usa un código diferente.'
             ])->withInput();
         }
 
         if ($request->hasFile('image')) {
-            if ($product->image) {
-                Storage::disk('public')->delete($product->image);
+            if ($store->image) {
+                Storage::disk('public')->delete($store->image);
             }
             $validated['image'] = $request->file('image')->store('products', 'public');
         }
 
-        $product->update($validated);
+        $store->update($validated);
         if ($request->boolean('stay_on_category') && $request->filled('category_id')) {
             return redirect()->route('categories.show', $request->input('category_id'))
                 ->with('success', 'Producto actualizado exitosamente.');
         }
 
-        return redirect()->route('products.index')
+        return redirect()->route('store.index')
             ->with('success', 'Producto actualizado exitosamente.');
     }
 
-    public function destroy(Product $product)
+    public function destroy(Product $store)
     {
-        if ($product->saleDetails()->count() > 0) {
+        if ($store->saleDetails()->count() > 0) {
             return back()->with('error', 'No se puede eliminar el producto porque tiene ventas asociadas.');
         }
 
-        if ($product->image) {
-            Storage::disk('public')->delete($product->image);
+        if ($store->image) {
+            Storage::disk('public')->delete($store->image);
         }
 
-        $product->delete();
+        $store->delete();
 
         return back()->with('success', 'Producto eliminado exitosamente.');
     }
 
-    public function toggleStatus(Product $product)
+    public function toggleStatus(Product $store)
     {
-        $product->update([
-            'is_active' => !$product->is_active
+        $store->update([
+            'is_active' => !$store->is_active
         ]);
 
         return back()->with('success', 'Estado del producto actualizado.');
@@ -190,6 +193,6 @@ class ProductController extends Controller
             'is_stored' => !$product->is_stored
         ]);
 
-        return redirect()->route("products.index");
+        return redirect()->route("store.index");
     }
 }

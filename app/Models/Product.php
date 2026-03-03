@@ -24,6 +24,7 @@ class Product extends Model
         'expiration_date',
         'image',
         'is_active',
+        'is_stored'
     ];
 
     protected function casts(): array
@@ -38,6 +39,7 @@ class Product extends Model
             'allow_fractional_sale' => 'boolean',
             'expiration_date' => 'date',
             'is_active' => 'boolean',
+            'is_stored' => 'boolean',
         ];
     }
 
