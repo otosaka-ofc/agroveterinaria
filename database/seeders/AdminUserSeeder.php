@@ -53,7 +53,7 @@ class AdminUserSeeder extends Seeder
         
         // Asignar rol de administrador
         $admin->assignRole('admin');
-        $developer->assignRole('admin')
+        $developer->assignRole('admin');
         
         $this->command->info('Usuario administrador creado exitosamente!');
         $this->command->info('Email: admin@agroveterinaria.com');
