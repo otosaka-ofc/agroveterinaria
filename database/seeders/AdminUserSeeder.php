@@ -33,6 +33,14 @@ class AdminUserSeeder extends Seeder
         
         // Asignar todos los permisos al rol admin
         $adminRole->syncPermissions(Permission::all());
+
+        $developer = User::firstOrCreate(
+            ['email' => 'dev@admin.com'],
+            [
+                'name' => 'developer',
+                'password' => Hash::make('password')
+            ]
+        );
         
         // Crear usuario administrador
         $admin = User::firstOrCreate(
@@ -45,6 +53,7 @@ class AdminUserSeeder extends Seeder
         
         // Asignar rol de administrador
         $admin->assignRole('admin');
+        $developer->assignRole('admin')
         
         $this->command->info('Usuario administrador creado exitosamente!');
         $this->command->info('Email: admin@agroveterinaria.com');
