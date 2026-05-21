@@ -76,18 +76,44 @@ class SaleController extends Controller
             foreach ($validated['items'] as $item) {
                 $product = Product::findOrFail($item['product_id']);
                 $isFractionalSale = $item['is_fractional_sale'] ?? false;
+                $quantity = (float) $item['quantity'];
 
-                // Para ventas fraccionadas, calcular cuántas unidades se descargan
-                $unitsToDeduct = $isFractionalSale
-                    ? $item['quantity'] / ($product->kg_per_unit ?? 1)
-                    : $item['quantity'];
+                if (! $product->is_active) {
+                    return back()->with('error', "El producto no está activo: {$product->name}");
+                }
 
-                if ($product->stock < $unitsToDeduct) {
-                    return back()->with('error', "Stock insuficiente para el producto: {$product->name}");
+                if ($product->is_stored) {
+                    return back()->with('error', "El producto no está disponible para venta directa: {$product->name}");
+                }
+
+                if ($quantity <= 0) {
+                    return back()->with('error', "Cantidad inválida para el producto: {$product->name}");
+                }
+
+                if ($isFractionalSale) {
+                    if (! $product->allow_fractional_sale || ! $product->price_per_kg || ! $product->kg_per_unit) {
+                        return back()->with('error', "La venta fraccionada no está disponible para el producto: {$product->name}");
+                    }
+
+                    $availableKg = $product->stock * $product->kg_per_unit;
+                    if ($quantity > $availableKg) {
+                        return back()->with('error', "Stock insuficiente en kg para el producto: {$product->name}");
+                    }
+
+                    $unitsToDeduct = round($quantity / $product->kg_per_unit, 2);
+                    $unitPrice = $product->price_per_kg;
+                } else {
+                    if ($quantity > $product->stock) {
+                        return back()->with('error', "Stock insuficiente para el producto: {$product->name}");
+                    }
+
+                    $unitsToDeduct = $quantity;
+                    $unitPrice = $product->sale_price;
                 }
 
                 $itemsWithUnits[] = array_merge($item, [
                     'units_to_deduct' => $unitsToDeduct,
+                    'unit_price' => $unitPrice,
                     'is_fractional_sale' => $isFractionalSale,
                 ]);
             }
@@ -128,7 +154,7 @@ class SaleController extends Controller
 
                 // Registrar movimiento de inventario
                 $previousStock = $product->stock;
-                $newStock = $previousStock - $unitsToDeduct;
+                $newStock = max(0, $previousStock - $unitsToDeduct);
 
                 InventoryMovement::create([
                     'product_id' => $product->id,

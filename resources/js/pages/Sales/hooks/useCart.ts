@@ -17,8 +17,9 @@ export function useCart() {
               ? 0.5
               : 1;
 
+        const pricePerKg = isFractionalSale ? product.price_per_kg : undefined;
         const unitPrice = isFractionalSale
-            ? product.price_per_kg!
+            ? pricePerKg!
             : product.sale_price;
 
         // Stock disponible en la misma unidad que se usará en el carrito:
@@ -52,7 +53,7 @@ export function useCart() {
                 stock: availableStock,
                 unit: product.unit,
                 isFractionalSale,
-                price_per_kg: product.price_per_kg,
+                price_per_kg: pricePerKg,
                 kg_per_unit: product.kg_per_unit,
             };
             setCart((prev) => [...prev, newItem]);

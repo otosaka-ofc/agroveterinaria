@@ -76,7 +76,7 @@ export function CartTable({
                                     )}
                                 </p>
                                 <p className="text-default-500 text-xs">
-                                    {item.price_per_kg
+                                    {item.isFractionalSale
                                         ? '/kg'
                                         : `/${item.unit}`}
                                 </p>
@@ -102,7 +102,7 @@ export function CartTable({
                                 <span className="text-default-500 text-xs whitespace-nowrap">
                                     {item.isFractionalSale
                                         ? `kg (disp: ${item.stock} kg)`
-                                        : item.unit}
+                                        : `${item.stock} ${item.unit}`}
                                 </span>
                             </div>
                         </TableCell>
