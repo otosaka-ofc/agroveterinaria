@@ -11,9 +11,11 @@ export interface Product {
     price_per_kg?: number;
     kg_per_unit?: number;
     allow_fractional_sale: boolean;
+    is_service: boolean;
 }
 
 export interface CartItem {
+    cart_key: string;
     product_id: number;
     name: string;
     quantity: number;
@@ -21,6 +23,8 @@ export interface CartItem {
     stock: number;
     unit: string;
     isFractionalSale: boolean;
+    isService: boolean;
+    breed?: string;
     price_per_kg?: number;
     kg_per_unit?: number;
 }

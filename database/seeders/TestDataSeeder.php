@@ -17,6 +17,7 @@ class TestDataSeeder extends Seeder
             'herramientas' => ['name' => 'Herramientas Agrícolas', 'description' => 'Herramientas para el campo', 'is_active' => true],
             'fertilizantes' => ['name' => 'Fertilizantes', 'description' => 'Fertilizantes y abonos', 'is_active' => true],
             'accesorios' => ['name' => 'Accesorios', 'description' => 'Accesorios diversos', 'is_active' => true],
+            'servicios' => ['name' => 'Servicios Veterinarios', 'description' => 'Servicios como baño, corte y vacunación', 'is_active' => true],
         ];
 
         $createdCategories = [];
@@ -38,6 +39,8 @@ class TestDataSeeder extends Seeder
             ['sku' => 'FER001', 'name' => 'Fertilizante NPK 50kg', 'category_id' => $createdCategories['fertilizantes']->id, 'purchase_price' => 55.00, 'sale_price' => 75.00, 'stock' => 35, 'min_stock' => 10, 'unit' => 'bolsa'],
             ['sku' => 'ACC001', 'name' => 'Guantes de Trabajo', 'category_id' => $createdCategories['accesorios']->id, 'purchase_price' => 5.00, 'sale_price' => 10.00, 'stock' => 100, 'min_stock' => 20, 'unit' => 'par'],
             ['sku' => 'ACC002', 'name' => 'Botas de Jebe', 'category_id' => $createdCategories['accesorios']->id, 'purchase_price' => 20.00, 'sale_price' => 35.00, 'stock' => 30, 'min_stock' => 10, 'unit' => 'par'],
+            ['sku' => 'SER001', 'name' => 'Baño y Corte', 'category_id' => $createdCategories['servicios']->id, 'purchase_price' => 0.00, 'sale_price' => 45.00, 'stock' => 0, 'min_stock' => 0, 'unit' => 'servicio', 'is_active' => true, 'is_stored' => false, 'is_service' => true],
+            ['sku' => 'SER002', 'name' => 'Vacunación', 'category_id' => $createdCategories['servicios']->id, 'purchase_price' => 0.00, 'sale_price' => 70.00, 'stock' => 0, 'min_stock' => 0, 'unit' => 'servicio', 'is_active' => true, 'is_stored' => false, 'is_service' => true],
         ];
 
         foreach ($products as $productData) {

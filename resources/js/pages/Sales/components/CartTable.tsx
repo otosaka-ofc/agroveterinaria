@@ -18,8 +18,8 @@ import {
 
 interface CartTableProps {
     cart: CartItem[];
-    onUpdateQuantity: (productId: number, quantity: number) => void;
-    onRemove: (productId: number) => void;
+    onUpdateQuantity: (cartKey: string, quantity: number) => void;
+    onRemove: (cartKey: string) => void;
 }
 
 export function CartTable({
@@ -57,15 +57,19 @@ export function CartTable({
             </TableHeader>
             <TableBody>
                 {cart.map((item) => (
-                    <TableRow key={item.product_id}>
+                    <TableRow key={item.cart_key}>
                         <TableCell>
                             <div>
                                 <p className="font-semibold">{item.name}</p>
-                                {item.isFractionalSale && (
+                                {item.isService && item.breed ? (
+                                    <p className="text-primary text-xs">
+                                        Servicio para raza: {item.breed}
+                                    </p>
+                                ) : item.isFractionalSale ? (
                                     <p className="text-success text-xs">
                                         Venta por kg
                                     </p>
-                                )}
+                                ) : null}
                             </div>
                         </TableCell>
                         <TableCell>
@@ -88,11 +92,11 @@ export function CartTable({
                                     type="number"
                                     min={getQuantityStep(item)}
                                     step={getQuantityStep(item)}
-                                    max={item.stock}
+                                    max={item.isService ? undefined : item.stock}
                                     value={item.quantity.toString()}
                                     onChange={(e) =>
                                         onUpdateQuantity(
-                                            item.product_id,
+                                            item.cart_key,
                                             parseFloat(e.target.value),
                                         )
                                     }
@@ -100,7 +104,9 @@ export function CartTable({
                                     size="sm"
                                 />
                                 <span className="text-default-500 text-xs whitespace-nowrap">
-                                    {item.isFractionalSale
+                                    {item.isService
+                                        ? 'Servicio'
+                                        : item.isFractionalSale
                                         ? `kg (disp: ${item.stock} kg)`
                                         : `${item.stock} ${item.unit}`}
                                 </span>
@@ -115,7 +121,7 @@ export function CartTable({
                                 size="sm"
                                 color="danger"
                                 variant="flat"
-                                onPress={() => onRemove(item.product_id)}
+                                onPress={() => onRemove(item.cart_key)}
                             >
                                 <Trash2 className="h-4 w-4 text-red-600" />
                             </Button>

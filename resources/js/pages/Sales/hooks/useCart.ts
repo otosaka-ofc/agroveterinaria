@@ -5,12 +5,17 @@ import { calculateItemSubtotal, getEffectiveUnitPrice } from '../utils';
 export function useCart() {
     const [cart, setCart] = useState<CartItem[]>([]);
 
-    const addToCart = (product: Product, isFractionalSale: boolean) => {
-        const existingItem = cart.find(
-            (item) => item.product_id === product.id,
-        );
+    const addToCart = (
+        product: Product,
+        isFractionalSale: boolean,
+        breed?: string,
+    ) => {
+        const cartKey = product.is_service
+            ? `${product.id}:${breed ?? 'criollo'}`
+            : String(product.id);
 
-        // Para venta fraccionada la cantidad se maneja en kg; para normal en unidades.
+        const existingItem = cart.find((item) => item.cart_key === cartKey);
+
         const increment = isFractionalSale
             ? 0.5
             : product.unit === 'kg' || product.unit === 'litro'
@@ -22,30 +27,31 @@ export function useCart() {
             ? pricePerKg!
             : product.sale_price;
 
-        // Stock disponible en la misma unidad que se usará en el carrito:
-        //   fraccionada → kg disponibles; normal → unidades disponibles.
-        const availableStock = isFractionalSale
-            ? product.stock * (product.kg_per_unit ?? 1)
-            : product.stock;
+        const availableStock = product.is_service
+            ? Number.POSITIVE_INFINITY
+            : isFractionalSale
+              ? product.stock * (product.kg_per_unit ?? 1)
+              : product.stock;
 
         if (existingItem) {
-            if (existingItem.quantity + increment > existingItem.stock) {
+            if (!product.is_service && existingItem.quantity + increment > existingItem.stock) {
                 alert('No hay suficiente stock');
                 return;
             }
             setCart((prev) =>
                 prev.map((item) =>
-                    item.product_id === product.id
+                    item.cart_key === cartKey
                         ? { ...item, quantity: item.quantity + increment }
                         : item,
                 ),
             );
         } else {
-            if (product.stock <= 0) {
+            if (!product.is_service && product.stock <= 0) {
                 alert('Producto sin stock');
                 return;
             }
             const newItem: CartItem = {
+                cart_key: cartKey,
                 product_id: product.id,
                 name: product.name,
                 quantity: increment,
@@ -53,6 +59,8 @@ export function useCart() {
                 stock: availableStock,
                 unit: product.unit,
                 isFractionalSale,
+                isService: product.is_service,
+                breed: breed,
                 price_per_kg: pricePerKg,
                 kg_per_unit: product.kg_per_unit,
             };
@@ -60,29 +68,29 @@ export function useCart() {
         }
     };
 
-    const updateQuantity = (productId: number, quantity: number) => {
-        const item = cart.find((i) => i.product_id === productId);
+    const updateQuantity = (cartKey: string, quantity: number) => {
+        const item = cart.find((i) => i.cart_key === cartKey);
         if (!item) return;
 
         if (quantity <= 0) {
-            removeFromCart(productId);
+            removeFromCart(cartKey);
             return;
         }
 
-        if (quantity > item.stock) {
+        if (!item.isService && quantity > item.stock) {
             alert('No hay suficiente stock');
             return;
         }
 
         setCart((prev) =>
             prev.map((i) =>
-                i.product_id === productId ? { ...i, quantity } : i,
+                i.cart_key === cartKey ? { ...i, quantity } : i,
             ),
         );
     };
 
-    const removeFromCart = (productId: number) => {
-        setCart((prev) => prev.filter((item) => item.product_id !== productId));
+    const removeFromCart = (cartKey: string) => {
+        setCart((prev) => prev.filter((item) => item.cart_key !== cartKey));
     };
 
     const clearCart = () => {
