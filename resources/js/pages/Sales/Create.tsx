@@ -10,9 +10,19 @@ import { PaymentPanel } from './components/PaymentPanel';
 import { ProductSearchDropdown } from './components/ProductSearchDropdown';
 import { SaleNotification } from './components/SaleNotification';
 import { SaleTypeModal } from './components/SaleTypeModal';
+import { ServiceBreedModal } from './components/ServiceBreedModal';
 import { useCart } from './hooks/useCart';
 import { Product } from './types';
 import { getEffectiveUnitPrice } from './utils';
+
+const SERVICE_BREEDS = [
+    'Criollo',
+    'Labrador',
+    'Poodle',
+    'Bulldog',
+    'Golden Retriever',
+    'Otra',
+];
 
 interface Props {
     products: Product[];
@@ -28,6 +38,7 @@ export default function SalesCreate({ products }: Props) {
     const [productModalOpen, setProductModalOpen] = useState<Product | null>(
         null,
     );
+    const [serviceProductModalOpen, setServiceProductModalOpen] = useState<Product | null>(null);
 
     const {
         cart,
@@ -51,6 +62,11 @@ export default function SalesCreate({ products }: Props) {
         setSearchQuery('');
         setShowDropdown(false);
 
+        if (product.is_service) {
+            setServiceProductModalOpen(product);
+            return;
+        }
+
         if (
             product.allow_fractional_sale &&
             product.price_per_kg &&
@@ -60,6 +76,13 @@ export default function SalesCreate({ products }: Props) {
         } else {
             addToCart(product, false);
         }
+    };
+
+    const handleSelectServiceBreed = (breed: string) => {
+        if (!serviceProductModalOpen) return;
+
+        addToCart(serviceProductModalOpen, false, breed);
+        setServiceProductModalOpen(null);
     };
 
     const handleSubmit = (e: React.FormEvent) => {
@@ -79,6 +102,7 @@ export default function SalesCreate({ products }: Props) {
             unit_price: getEffectiveUnitPrice(item),
             is_fractional_sale: item.isFractionalSale || false,
             price_per_kg: item.price_per_kg,
+            breed: item.breed || undefined,
         }));
 
         let wasSuccess = false;
@@ -220,6 +244,16 @@ export default function SalesCreate({ products }: Props) {
                             setProductModalOpen(null);
                         }}
                         onClose={() => setProductModalOpen(null)}
+                    />
+                )}
+
+                {/* Modal selección de raza para servicios */}
+                {serviceProductModalOpen && (
+                    <ServiceBreedModal
+                        product={serviceProductModalOpen}
+                        breeds={SERVICE_BREEDS}
+                        onSelectBreed={handleSelectServiceBreed}
+                        onClose={() => setServiceProductModalOpen(null)}
                     />
                 )}
             </div>

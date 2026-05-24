@@ -24,7 +24,8 @@ class Product extends Model
         'expiration_date',
         'image',
         'is_active',
-        'is_stored'
+        'is_stored',
+        'is_service',
     ];
 
     protected function casts(): array
@@ -40,6 +41,7 @@ class Product extends Model
             'expiration_date' => 'date',
             'is_active' => 'boolean',
             'is_stored' => 'boolean',
+            'is_service' => 'boolean',
         ];
     }
 

@@ -44,8 +44,11 @@ class SaleController extends Controller
     public function create()
     {
         $products = Product::where('is_active', true)
-            ->where('stock', '>', 0)
             ->where('is_stored', false)
+            ->where(function ($query) {
+                $query->where('is_service', true)
+                    ->orWhere('stock', '>', 0);
+            })
             ->with('category')
             ->get();
 
@@ -66,29 +69,65 @@ class SaleController extends Controller
             'items.*.unit_price' => 'required|numeric|min:0',
             'items.*.is_fractional_sale' => 'nullable|boolean',
             'items.*.price_per_kg' => 'nullable|numeric|min:0',
+            'items.*.breed' => 'nullable|string|max:255',
         ]);
 
         DB::beginTransaction();
 
         try {
-            // Verificar stock disponible y calcular unidades a descontar
+            // Verificar stock disponible, raza y calcular unidades a descontar
             $itemsWithUnits = [];
             foreach ($validated['items'] as $item) {
                 $product = Product::findOrFail($item['product_id']);
                 $isFractionalSale = $item['is_fractional_sale'] ?? false;
+                $quantity = (float) $item['quantity'];
+                $breed = isset($item['breed']) ? trim($item['breed']) : null;
 
-                // Para ventas fraccionadas, calcular cuántas unidades se descargan
-                $unitsToDeduct = $isFractionalSale
-                    ? $item['quantity'] / ($product->kg_per_unit ?? 1)
-                    : $item['quantity'];
+                if (! $product->is_active) {
+                    return back()->with('error', "El producto no está activo: {$product->name}");
+                }
 
-                if ($product->stock < $unitsToDeduct) {
-                    return back()->with('error', "Stock insuficiente para el producto: {$product->name}");
+                if ($product->is_stored) {
+                    return back()->with('error', "El producto no está disponible para venta directa: {$product->name}");
+                }
+
+                if ($quantity <= 0) {
+                    return back()->with('error', "Cantidad inválida para el producto: {$product->name}");
+                }
+
+                if ($product->is_service) {
+                    if (! $breed) {
+                        return back()->with('error', "Debes seleccionar la raza para el servicio: {$product->name}");
+                    }
+
+                    $unitsToDeduct = 0;
+                    $unitPrice = $this->getServiceUnitPrice($product, $breed);
+                } elseif ($isFractionalSale) {
+                    if (! $product->allow_fractional_sale || ! $product->price_per_kg || ! $product->kg_per_unit) {
+                        return back()->with('error', "La venta fraccionada no está disponible para el producto: {$product->name}");
+                    }
+
+                    $availableKg = $product->stock * $product->kg_per_unit;
+                    if ($quantity > $availableKg) {
+                        return back()->with('error', "Stock insuficiente en kg para el producto: {$product->name}");
+                    }
+
+                    $unitsToDeduct = round($quantity / $product->kg_per_unit, 2);
+                    $unitPrice = $product->price_per_kg;
+                } else {
+                    if ($quantity > $product->stock) {
+                        return back()->with('error', "Stock insuficiente para el producto: {$product->name}");
+                    }
+
+                    $unitsToDeduct = $quantity;
+                    $unitPrice = $product->sale_price;
                 }
 
                 $itemsWithUnits[] = array_merge($item, [
                     'units_to_deduct' => $unitsToDeduct,
+                    'unit_price' => $unitPrice,
                     'is_fractional_sale' => $isFractionalSale,
+                    'breed' => $breed,
                 ]);
             }
 
@@ -121,28 +160,31 @@ class SaleController extends Controller
                 SaleDetail::create([
                     'sale_id' => $sale->id,
                     'product_id' => $product->id,
+                    'breed' => $item['breed'] ?? null,
                     'quantity' => $item['quantity'],
                     'unit_price' => $item['unit_price'],
                     'subtotal' => $itemSubtotal,
                 ]);
 
-                // Registrar movimiento de inventario
-                $previousStock = $product->stock;
-                $newStock = $previousStock - $unitsToDeduct;
+                if (! $product->is_service) {
+                    // Registrar movimiento de inventario
+                    $previousStock = $product->stock;
+                    $newStock = max(0, $previousStock - $unitsToDeduct);
 
-                InventoryMovement::create([
-                    'product_id' => $product->id,
-                    'type' => 'exit',
-                    'quantity' => $unitsToDeduct,
-                    'previous_stock' => $previousStock,
-                    'new_stock' => $newStock,
-                    'reason' => 'Venta #' . $sale->sale_number,
-                    'user_id' => auth()->id(),
-                    'sale_id' => $sale->id,
-                ]);
+                    InventoryMovement::create([
+                        'product_id' => $product->id,
+                        'type' => 'exit',
+                        'quantity' => $unitsToDeduct,
+                        'previous_stock' => $previousStock,
+                        'new_stock' => $newStock,
+                        'reason' => 'Venta #' . $sale->sale_number,
+                        'user_id' => auth()->id(),
+                        'sale_id' => $sale->id,
+                    ]);
 
-                // Actualizar stock del producto
-                $product->update(['stock' => $newStock]);
+                    // Actualizar stock del producto
+                    $product->update(['stock' => $newStock]);
+                }
             }
 
             DB::commit();
@@ -153,6 +195,29 @@ class SaleController extends Controller
             DB::rollBack();
             return back()->with('error', 'Error al procesar la venta: ' . $e->getMessage());
         }
+    }
+
+    private function getServiceUnitPrice(Product $product, ?string $breed): float
+    {
+        $breed = strtolower(trim($breed ?? ''));
+        $basePrice = $product->sale_price;
+        $adjustments = [
+            'labrador' => 10,
+            'poodle' => 8,
+            'bulldog' => 12,
+            'pastor' => 10,
+            'golden' => 10,
+            'criollo' => 0,
+            'otra' => 5,
+        ];
+
+        foreach ($adjustments as $key => $extra) {
+            if (str_contains($breed, $key)) {
+                return $basePrice + $extra;
+            }
+        }
+
+        return $basePrice;
     }
 
     public function show(Sale $sale)

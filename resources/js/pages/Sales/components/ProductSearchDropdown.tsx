@@ -62,10 +62,10 @@ export function ProductSearchDropdown({
                                             {product.name}
                                         </p>
                                         <p className="text-default-500 text-xs">
-                                            SKU: {product.sku} | Stock: {product.stock}
-                                            {product.allow_fractional_sale && product.price_per_kg && (
+                                            SKU: {product.sku} | Stock: {product.stock} {product.unit}
+                                            {product.allow_fractional_sale && product.price_per_kg && product.kg_per_unit && (
                                                 <span className="text-success ml-2 font-medium">
-                                                    | Venta fraccionada disponible
+                                                    | {product.stock * product.kg_per_unit} kg disponibles
                                                 </span>
                                             )}
                                         </p>
