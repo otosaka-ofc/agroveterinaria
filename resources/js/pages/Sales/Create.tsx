@@ -178,7 +178,7 @@ export default function SalesCreate({ products }: Props) {
                 )}
 
                 <form onSubmit={handleSubmit}>
-                    <div className="grid gap-6 lg:grid-cols-3">
+                    <div className="grid gap-6 lg:grid-cols-3 overflow-x-auto">
                         {/* Panel izquierdo: búsqueda + carrito */}
                         <div className="lg:col-span-2">
                             <Card className="rounded-3xl border-none shadow-2xl dark:bg-[#18181b]">
