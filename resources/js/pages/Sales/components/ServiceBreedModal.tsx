@@ -16,7 +16,7 @@ export function ServiceBreedModal({
 }: ServiceBreedModalProps) {
     return (
         <div className="fixed inset-0 z-50 flex items-center justify-center rounded-lg bg-black/50">
-            <Card className="mx-4 w-full max-w-md border-none shadow-2xl bg-white dark:bg-[#18181b]">
+            <Card className="mx-4 w-full max-w-md border-none rounded-2xl shadow-2xl bg-white dark:bg-[#18181b]">
                 <CardHeader className="px-6 pt-6 pb-4">
                     <div>
                         <h3 className="text-default-700 dark:text-default-200 text-lg font-bold">
