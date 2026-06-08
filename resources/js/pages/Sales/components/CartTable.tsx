@@ -40,14 +40,16 @@ export function CartTable({
     }
 
     return (
-        <Table
-            aria-label="Carrito de compras"
-            classNames={{
-                wrapper: 'rounded-2xl shadow-none',
-                th: 'bg-default-100 text-default-700 font-bold',
-                td: 'py-4',
-            }}
-        >
+        <div className="overflow-x-auto">
+            <div className="min-w-[720px]">
+                <Table
+                    aria-label="Carrito de compras"
+                    classNames={{
+                        wrapper: 'rounded-2xl shadow-none',
+                        th: 'bg-default-100 text-default-700 font-bold',
+                        td: 'py-4',
+                    }}
+                >
             <TableHeader>
                 <TableColumn>PRODUCTO</TableColumn>
                 <TableColumn>PRECIO</TableColumn>
@@ -58,7 +60,7 @@ export function CartTable({
             <TableBody>
                 {cart.map((item) => (
                     <TableRow key={item.cart_key}>
-                        <TableCell>
+                        <TableCell className="whitespace-nowrap">
                             <div>
                                 <p className="font-semibold">{item.name}</p>
                                 {item.isService && item.breed ? (
@@ -72,7 +74,7 @@ export function CartTable({
                                 ) : null}
                             </div>
                         </TableCell>
-                        <TableCell>
+                        <TableCell className="whitespace-nowrap">
                             <div>
                                 <p className="font-semibold">
                                     {formatCurrency(
@@ -100,7 +102,7 @@ export function CartTable({
                                             parseFloat(e.target.value),
                                         )
                                     }
-                                    className="w-24"
+                                    className="w-20 sm:w-24"
                                     size="sm"
                                 />
                                 <span className="text-default-500 text-xs whitespace-nowrap">
@@ -115,7 +117,7 @@ export function CartTable({
                         <TableCell className="font-semibold">
                             {formatCurrency(calculateItemSubtotal(item))}
                         </TableCell>
-                        <TableCell>
+                        <TableCell className="whitespace-nowrap">
                             <Button
                                 isIconOnly
                                 size="sm"
@@ -129,6 +131,8 @@ export function CartTable({
                     </TableRow>
                 ))}
             </TableBody>
-        </Table>
+                </Table>
+            </div>
+        </div>
     );
 }
